@@ -73,21 +73,22 @@ namespace :db do
     @@id_indexed.each do |key, value|
       replacement = @@id_hash[key]
       if replacement.blank?
-        # null out orphan foreign keys
+        # null out orphan foreign keys in the inserts
+        pattern = "'#{key}'"
+        replacement = "NULL"
         value.each do |id|
           @@orphans << [@@all_objects[key], key, @@lines[id]]
-          pattern = "'#{key}'"
-          replacement = "NULL"
           @@lines[id].gsub!(pattern, replacement)
         end
-        next
       end
+      # if not an orphan, then we do the gsub on just the insert
+      # statements that have the placeholder we are getting rid of
       value.each do |id|
         @@lines[id].gsub!(key, replacement)
       end
     end
 
-    # write out inserts to file
+    # done! write out inserts to file
     filename = "#{File.expand_path('~')}/Downloads/mongodump.sql"
     File.open(filename, 'w') do |f|
       @@lines.each do |line|
@@ -97,9 +98,14 @@ namespace :db do
     puts "Exported object count: #{@@id_hash.count}"
   end
 
-  def generate_from_collection(model, models, parent_key, parent_id, poly_in)
+  # given a collection, iterate through all members and create
+  # an insert sql statement for each
+  # also recursively kick off any subrelationships
+  def generate_from_collection(model, items, parent_key, parent_id, poly_in)
     model_table = model.to_s.gsub(/::/, "_").tableize
     insert_string = "INSERT INTO " << model_table << "("
+
+    # map mongo types to sql
     sql_types = {"String"=>"text", "BSON::ObjectId"=>"primary_key", "Time"=>"time", "Object"=>"integer", "Array"=>"text", "Integer"=>"integer", "string"=>"text", "DateTime"=>"datetime", "Date"=>"date", "Hash"=>"text", "Boolean"=>"boolean", "Float"=>"float"}
     ignored_fields = ['_type', "_keywords"]
 
@@ -109,11 +115,12 @@ namespace :db do
     # hash of habtm relations from your schema - make sure the key is alpha before the value
     habtm = {'AlphaTable' => 'BetaTable'}
 
+    # user mongoid to figure out relationships we need to iterate over
     relations_in = model.relations.select {|key,value| value[:relation]==Mongoid::Relations::Embedded::Many}
     single_in = model.relations.select {|key,value| value[:relation]==Mongoid::Relations::Embedded::One}
-    models.each_with_index do |obj, i|
+    items.each_with_index do |obj, i|
       id_to_use_next = @@id_counter[model_table] || 100000
-      @@id_counter[model_table] = id_to_use_next+1
+      @@id_counter[model_table] = id_to_use_next+1   # hash to keep track of postgres id sequences
       obj_hash = {}
       obj_id = ""
       postgres_obj_id = ""
@@ -157,7 +164,7 @@ namespace :db do
         postgres_obj_id = val if field_name=="id"
         obj_hash[field_name] = val
       end
-      if poly_in
+      if poly_in # do polymorphic foreign keys
         obj_hash["mongo_#{poly_in}_id"] = parent_id
         obj_hash["#{poly_in}_type"] = parent_key.classify
         obj_hash["#{poly_in}_id"] = "#{parent_id}_placeholder"

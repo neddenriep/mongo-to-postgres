@@ -5,3 +5,5 @@ These are two tasks that should serve as starting points for a Mongo to Postgres
 As is it should handle polymorphic relationships, habtm, has many, and embeds many.
 
 The tasks assume that models inherit from ActiveRecord::Base and that BSON ids are unique across all collections and embedded collections.
+
+See the SD Ruby talk and slides (To be posted) for more info.
