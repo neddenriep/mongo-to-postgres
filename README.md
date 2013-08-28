@@ -6,4 +6,4 @@ As is it should handle polymorphic relationships, habtm, has many, and embeds ma
 
 The tasks assume that models inherit from ActiveRecord::Base and that BSON ids are unique across all collections and embedded collections.
 
-See the SD Ruby talk and slides (To be posted) for more info.
+See the [SD Ruby talk and slides](http://www.sdruby.org/podcast/127) for more info.
